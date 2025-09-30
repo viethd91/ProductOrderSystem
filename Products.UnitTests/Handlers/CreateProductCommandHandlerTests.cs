@@ -98,7 +98,7 @@ public class CreateProductCommandHandlerTests
             .ReturnsAsync(1);
 
         _mockMessageBus
-            .Setup(mb => mb.PublishAsync(It.IsAny<ProductCreatedEvent>(), cancellationToken))
+            .Setup(mb => mb.PublishAsync(It.IsAny<IDomainEvent>(), cancellationToken))
             .Returns(Task.CompletedTask);
 
         var result = await _handler.Handle(command, cancellationToken);
@@ -107,10 +107,11 @@ public class CreateProductCommandHandlerTests
 
         _mockMessageBus.Verify(
             mb => mb.PublishAsync(
-                It.Is<ProductCreatedEvent>(e =>
-                    e.ProductId != Guid.Empty &&
-                    e.ProductName == command.Name &&
-                    e.Price == command.Price),
+                It.Is<IDomainEvent>(e =>
+                    e.GetType() == typeof(ProductCreatedEvent) &&
+                    ((ProductCreatedEvent)e).ProductId != Guid.Empty &&
+                    ((ProductCreatedEvent)e).ProductName == command.Name &&
+                    ((ProductCreatedEvent)e).Price == command.Price),
                 cancellationToken),
             Times.Once);
     }
@@ -263,8 +264,12 @@ public class CreateProductCommandHandlerTests
             .ReturnsAsync(1);
 
         _mockMessageBus
-            .Setup(mb => mb.PublishAsync(It.IsAny<ProductCreatedEvent>(), cancellationToken))
-            .Callback<ProductCreatedEvent, CancellationToken>((evt, _) => capturedEvent = evt)
+            .Setup(mb => mb.PublishAsync(It.IsAny<IDomainEvent>(), cancellationToken))
+            .Callback<IDomainEvent, CancellationToken>((evt, _) => 
+            {
+                if (evt is ProductCreatedEvent pce)
+                    capturedEvent = pce;
+            })
             .Returns(Task.CompletedTask);
 
         await _handler.Handle(command, cancellationToken);
