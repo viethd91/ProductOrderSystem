@@ -15,7 +15,7 @@ namespace Shared.Messaging;
 /// </summary>
 public sealed class InMemoryMessageBus : IMessageBus
 {
-    private readonly ConcurrentDictionary<Type, List<Func<object, Task>>> _handlers = new();
+    private readonly ConcurrentDictionary<Type, ConcurrentBag<Func<object, Task>>> _handlers = new();
     private readonly ILogger<InMemoryMessageBus> _logger;
 
     public InMemoryMessageBus(ILogger<InMemoryMessageBus>? logger = null)
@@ -26,34 +26,47 @@ public sealed class InMemoryMessageBus : IMessageBus
     public void Subscribe<T>(Func<T, Task> handler) where T : class
     {
         ArgumentNullException.ThrowIfNull(handler);
-        var list = _handlers.GetOrAdd(typeof(T), _ => new List<Func<object, Task>>());
-        lock (list)
-        {
-            list.Add(o => handler((T)o));
-        }
-        _logger.LogDebug("Handler subscribed for message type {MessageType}", typeof(T).Name);
+        
+        var messageType = typeof(T);
+        var wrappedHandler = new Func<object, Task>(obj => handler((T)obj));
+        
+        _handlers.AddOrUpdate(
+            messageType,
+            _ => new ConcurrentBag<Func<object, Task>> { wrappedHandler },
+            (_, existing) =>
+            {
+                existing.Add(wrappedHandler);
+                return existing;
+            });
+            
+        _logger.LogDebug("Handler subscribed for message type {MessageType}. Total handlers: {HandlerCount}", 
+            messageType.Name, _handlers[messageType].Count);
     }
 
     public Task PublishAsync<T>(T message, CancellationToken cancellationToken = default) where T : class
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        if (_handlers.TryGetValue(typeof(T), out var list))
+        var messageType = typeof(T);
+        
+        if (_handlers.TryGetValue(messageType, out var handlerBag))
         {
-            List<Func<object, Task>> snapshot;
-            lock (list)
+            var handlers = handlerBag.ToArray(); // Create snapshot for thread safety
+            
+            _logger.LogDebug("Publishing to {HandlerCount} handlers for message type {MessageType}",
+                handlers.Length, messageType.Name);
+
+            if (handlers.Length == 0)
             {
-                snapshot = list.ToList();
+                _logger.LogTrace("No handlers found in bag for message type {MessageType}", messageType.Name);
+                return Task.CompletedTask;
             }
 
-            _logger.LogDebug("Publishing {HandlerCount} handlers for message type {MessageType}",
-                snapshot.Count, typeof(T).Name);
-
-            var tasks = snapshot.Select(h => SafeInvoke(h, message, cancellationToken));
+            var tasks = handlers.Select(h => SafeInvoke(h, message, cancellationToken));
             return Task.WhenAll(tasks);
         }
 
-        _logger.LogTrace("No handlers registered for message type {MessageType}", typeof(T).Name);
+        _logger.LogTrace("No handlers registered for message type {MessageType}", messageType.Name);
         return Task.CompletedTask;
     }
 

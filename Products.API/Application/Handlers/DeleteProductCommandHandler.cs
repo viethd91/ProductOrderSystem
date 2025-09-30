@@ -3,19 +3,16 @@ using Products.API.Application.Commands;
 using Products.API.Application.Interfaces;
 using Products.API.Domain.Entities;
 using Products.API.Domain.Interfaces;
-using Shared.Messaging; // Use shared interface instead of local one
 
 namespace Products.API.Application.Handlers;
 
 /// <summary>
 /// Command handler for deleting products (soft or hard delete)
-/// Implements CQRS pattern with domain event publishing
+/// Implements CQRS pattern
 /// </summary>
 /// <param name="repository">Product repository for data persistence</param>
-/// <param name="messageBus">Message bus for publishing domain events</param>
 public class DeleteProductCommandHandler(
-    IProductRepository repository,
-    IMessageBus messageBus) : IRequestHandler<DeleteProductCommand, bool>
+    IProductRepository repository) : IRequestHandler<DeleteProductCommand, bool>
 {
     /// <summary>
     /// Handles the delete product command
@@ -58,31 +55,8 @@ public class DeleteProductCommandHandler(
         {
             // Save changes
             await repository.SaveChangesAsync(cancellationToken);
-
-            // Publish domain events (only for soft delete, hard delete doesn't generate events)
-            if (!request.HardDelete)
-            {
-                await PublishDomainEvents(product, cancellationToken);
-            }
         }
 
         return result;
-    }
-
-    /// <summary>
-    /// Publishes all domain events from the product entity
-    /// </summary>
-    /// <param name="product">Product entity with domain events</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    private async Task PublishDomainEvents(Product product, CancellationToken cancellationToken)
-    {
-        var domainEvents = product.DomainEvents.ToList();
-        
-        foreach (var domainEvent in domainEvents)
-        {
-            await messageBus.PublishAsync(domainEvent, cancellationToken);
-        }
-
-        product.ClearDomainEvents();
     }
 }

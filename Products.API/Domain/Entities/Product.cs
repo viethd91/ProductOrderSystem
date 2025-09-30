@@ -1,13 +1,9 @@
 using System.ComponentModel.DataAnnotations;
-using Products.API.Domain.Interfaces;
-using Products.API.Domain.Events;
 
 namespace Products.API.Domain.Entities;
 
 public class Product
 {
-    private readonly List<IDomainEvent> _domainEvents = [];
-
     public Guid Id { get; private set; }
     public string Name { get; private set; }
     public decimal Price { get; private set; }
@@ -15,8 +11,6 @@ public class Product
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }
     public bool IsDeleted { get; private set; }
-
-    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
 
     // Primary constructor with domain validation
     public Product(string name, decimal price, int stock)
@@ -32,9 +26,6 @@ public class Product
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
         IsDeleted = false;
-
-        // Raise domain event
-        AddDomainEvent(new ProductCreatedEvent(Id, Name, Price));
     }
 
     // Parameterless constructor for EF Core
@@ -49,12 +40,8 @@ public class Product
         
         if (Price != newPrice)
         {
-            var oldPrice = Price;
             Price = newPrice;
             UpdatedAt = DateTime.UtcNow;
-
-            // Raise domain event
-            AddDomainEvent(new ProductPriceChangedEvent(Id, oldPrice, newPrice));
         }
     }
 
@@ -87,13 +74,6 @@ public class Product
 
         IsDeleted = true;
         UpdatedAt = DateTime.UtcNow;
-
-        // Raise domain event
-        AddDomainEvent(new ProductDeletedEvent(Id, Name)
-        {
-            DeletionReason = reason,
-            DeletedBy = deletedBy
-        });
     }
 
     public void ReduceStock(int quantity)
@@ -120,17 +100,6 @@ public class Product
     public bool IsInStock => Stock > 0 && !IsDeleted;
 
     public bool IsAvailable(int requestedQuantity) => Stock >= requestedQuantity && !IsDeleted;
-
-    // Domain event management
-    public void AddDomainEvent(IDomainEvent domainEvent)
-    {
-        _domainEvents.Add(domainEvent);
-    }
-
-    public void ClearDomainEvents()
-    {
-        _domainEvents.Clear();
-    }
 
     // Domain validation methods
     private static void ValidateName(string name)

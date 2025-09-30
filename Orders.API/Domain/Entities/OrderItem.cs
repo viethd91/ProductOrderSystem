@@ -1,8 +1,10 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Orders.API.Domain.Entities;
 
 /// <summary>
-/// Order item entity representing a product within an order
-/// Child entity of the Order aggregate root
+/// Order item entity representing a line item in an order
+/// Contains product information and pricing at the time of order
 /// </summary>
 public class OrderItem
 {
@@ -12,24 +14,14 @@ public class OrderItem
     public Guid Id { get; private set; }
 
     /// <summary>
-    /// Identifier of the order this item belongs to
-    /// </summary>
-    public Guid OrderId { get; private set; }
-
-    /// <summary>
-    /// Product identifier from the Products catalog
+    /// Identifier of the product this item represents
     /// </summary>
     public Guid ProductId { get; private set; }
 
     /// <summary>
-    /// Product name at the time of order (for historical purposes)
+    /// Product name at the time of order (for historical reference)
     /// </summary>
     public string ProductName { get; private set; }
-
-    /// <summary>
-    /// Quantity of the product ordered
-    /// </summary>
-    public int Quantity { get; private set; }
 
     /// <summary>
     /// Unit price of the product at the time of order
@@ -37,13 +29,22 @@ public class OrderItem
     public decimal UnitPrice { get; private set; }
 
     /// <summary>
-    /// Total price for this line item (Quantity × UnitPrice)
-    /// Calculated property that ensures consistency
+    /// Quantity of the product ordered
     /// </summary>
-    public decimal TotalPrice => CalculateSubtotal();
+    public int Quantity { get; private set; }
 
     /// <summary>
-    /// Navigation property to the parent Order aggregate
+    /// Total price for this line item (UnitPrice * Quantity)
+    /// </summary>
+    public decimal TotalPrice => UnitPrice * Quantity;
+
+    /// <summary>
+    /// Reference to the parent order
+    /// </summary>
+    public Guid OrderId { get; private set; }
+
+    /// <summary>
+    /// Navigation property to the parent order
     /// </summary>
     public Order Order { get; private set; } = null!;
 
@@ -52,20 +53,20 @@ public class OrderItem
     /// </summary>
     /// <param name="productId">Product identifier</param>
     /// <param name="productName">Product name</param>
-    /// <param name="quantity">Quantity ordered</param>
     /// <param name="unitPrice">Unit price</param>
-    public OrderItem(Guid productId, string productName, int quantity, decimal unitPrice)
+    /// <param name="quantity">Quantity ordered</param>
+    public OrderItem(Guid productId, string productName, decimal unitPrice, int quantity)
     {
         ValidateProductId(productId);
         ValidateProductName(productName);
-        ValidateQuantity(quantity);
         ValidateUnitPrice(unitPrice);
+        ValidateQuantity(quantity);
 
         Id = Guid.NewGuid();
         ProductId = productId;
         ProductName = productName;
-        Quantity = quantity;
         UnitPrice = unitPrice;
+        Quantity = quantity;
     }
 
     /// <summary>
@@ -77,10 +78,21 @@ public class OrderItem
     }
 
     /// <summary>
-    /// Updates the quantity of this order item
-    /// Used when consolidating items with the same product
+    /// Updates the unit price of the order item
+    /// Typically used for pending orders when product prices change
     /// </summary>
-    /// <param name="newQuantity">New quantity value</param>
+    /// <param name="newUnitPrice">New unit price</param>
+    /// <exception cref="ArgumentException">Thrown when price is invalid</exception>
+    public void UpdateUnitPrice(decimal newUnitPrice)
+    {
+        ValidateUnitPrice(newUnitPrice);
+        UnitPrice = newUnitPrice;
+    }
+
+    /// <summary>
+    /// Updates the quantity of the order item
+    /// </summary>
+    /// <param name="newQuantity">New quantity</param>
     /// <exception cref="ArgumentException">Thrown when quantity is invalid</exception>
     public void UpdateQuantity(int newQuantity)
     {
@@ -89,19 +101,7 @@ public class OrderItem
     }
 
     /// <summary>
-    /// Updates the unit price of this order item
-    /// Used when product price changes before order confirmation
-    /// </summary>
-    /// <param name="newUnitPrice">New unit price value</param>
-    /// <exception cref="ArgumentException">Thrown when price is invalid</exception>
-    public void UpdatePrice(decimal newUnitPrice)
-    {
-        ValidateUnitPrice(newUnitPrice);
-        UnitPrice = newUnitPrice;
-    }
-
-    /// <summary>
-    /// Updates the product name (in case of product name changes)
+    /// Updates the product name (for historical accuracy)
     /// </summary>
     /// <param name="newProductName">New product name</param>
     /// <exception cref="ArgumentException">Thrown when name is invalid</exception>
@@ -109,76 +109,6 @@ public class OrderItem
     {
         ValidateProductName(newProductName);
         ProductName = newProductName;
-    }
-
-    /// <summary>
-    /// Updates the unit price of this order item to a new value
-    /// </summary>
-    /// <param name="newPrice">New unit price value</param>
-    /// <exception cref="ArgumentException">Thrown when price is negative</exception>
-    public void UpdateUnitPrice(decimal newPrice)
-    {
-        if (newPrice < 0)
-            throw new ArgumentException("Unit price cannot be negative", nameof(newPrice));
-        
-        UnitPrice = newPrice;
-    }
-
-    /// <summary>
-    /// Calculates the subtotal for this order item
-    /// </summary>
-    /// <returns>The subtotal (Quantity × UnitPrice)</returns>
-    public decimal CalculateSubtotal()
-    {
-        return Quantity * UnitPrice;
-    }
-
-    /// <summary>
-    /// Increases the quantity by the specified amount
-    /// </summary>
-    /// <param name="additionalQuantity">Amount to add to current quantity</param>
-    /// <exception cref="ArgumentException">Thrown when additional quantity is invalid</exception>
-    public void AddQuantity(int additionalQuantity)
-    {
-        if (additionalQuantity <= 0)
-        {
-            throw new ArgumentException("Additional quantity must be positive", nameof(additionalQuantity));
-        }
-
-        var newQuantity = Quantity + additionalQuantity;
-        ValidateQuantity(newQuantity);
-        Quantity = newQuantity;
-    }
-
-    /// <summary>
-    /// Reduces the quantity by the specified amount
-    /// </summary>
-    /// <param name="quantityToRemove">Amount to remove from current quantity</param>
-    /// <exception cref="ArgumentException">Thrown when quantity to remove is invalid</exception>
-    /// <exception cref="InvalidOperationException">Thrown when resulting quantity would be invalid</exception>
-    public void RemoveQuantity(int quantityToRemove)
-    {
-        if (quantityToRemove <= 0)
-        {
-            throw new ArgumentException("Quantity to remove must be positive", nameof(quantityToRemove));
-        }
-
-        var newQuantity = Quantity - quantityToRemove;
-        if (newQuantity <= 0)
-        {
-            throw new InvalidOperationException("Cannot reduce quantity to zero or negative. Remove the item instead.");
-        }
-
-        Quantity = newQuantity;
-    }
-
-    /// <summary>
-    /// Sets the order identifier (used by EF Core)
-    /// </summary>
-    /// <param name="orderId">Order identifier</param>
-    internal void SetOrderId(Guid orderId)
-    {
-        OrderId = orderId;
     }
 
     // Domain validation methods
@@ -203,6 +133,25 @@ public class OrderItem
         }
     }
 
+    private static void ValidateUnitPrice(decimal unitPrice)
+    {
+        if (unitPrice < 0)
+        {
+            throw new ArgumentException("Unit price cannot be negative", nameof(unitPrice));
+        }
+
+        if (unitPrice == 0)
+        {
+            throw new ArgumentException("Unit price must be greater than zero", nameof(unitPrice));
+        }
+
+        // Check for reasonable decimal precision (max 2 decimal places for currency)
+        if (decimal.Round(unitPrice, 2) != unitPrice)
+        {
+            throw new ArgumentException("Unit price can have at most 2 decimal places", nameof(unitPrice));
+        }
+    }
+
     private static void ValidateQuantity(int quantity)
     {
         if (quantity <= 0)
@@ -210,30 +159,9 @@ public class OrderItem
             throw new ArgumentException("Quantity must be greater than zero", nameof(quantity));
         }
 
-        // Add reasonable upper limit to prevent abuse
         if (quantity > 10000)
         {
-            throw new ArgumentException("Quantity cannot exceed 10,000 items", nameof(quantity));
-        }
-    }
-
-    private static void ValidateUnitPrice(decimal unitPrice)
-    {
-        if (unitPrice <= 0)
-        {
-            throw new ArgumentException("Unit price must be greater than zero", nameof(unitPrice));
-        }
-
-        // Check for reasonable decimal precision (max 4 decimal places for extended precision)
-        if (decimal.Round(unitPrice, 4) != unitPrice)
-        {
-            throw new ArgumentException("Unit price can have at most 4 decimal places", nameof(unitPrice));
-        }
-
-        // Add reasonable upper limit
-        if (unitPrice > 1_000_000m)
-        {
-            throw new ArgumentException("Unit price cannot exceed 1,000,000", nameof(unitPrice));
+            throw new ArgumentException("Quantity cannot exceed 10,000 units per line item", nameof(quantity));
         }
     }
 
@@ -265,5 +193,5 @@ public class OrderItem
     public static bool operator !=(OrderItem? left, OrderItem? right) => !(left == right);
 
     public override string ToString() =>
-        $"OrderItem: {ProductName} (Id: {Id}, ProductId: {ProductId}, Qty: {Quantity}, Price: {UnitPrice:C}, Total: {TotalPrice:C})";
+        $"OrderItem: {ProductName} (Id: {Id}, ProductId: {ProductId}, Quantity: {Quantity}, UnitPrice: {UnitPrice:C}, Total: {TotalPrice:C})";
 }

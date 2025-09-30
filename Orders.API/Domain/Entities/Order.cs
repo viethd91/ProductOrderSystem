@@ -1,5 +1,4 @@
 using Orders.API.Domain.Enums;
-using Orders.API.Domain.Events;
 using Orders.API.Domain.Interfaces;
 
 namespace Orders.API.Domain.Entities;
@@ -10,7 +9,6 @@ namespace Orders.API.Domain.Entities;
 /// </summary>
 public class Order
 {
-    private readonly List<IDomainEvent> _domainEvents = [];
     private readonly List<OrderItem> _orderItems = [];
     private decimal _totalAmount;
 
@@ -64,10 +62,6 @@ public class Order
     /// </summary>
     public DateTime UpdatedAt { get; private set; }
 
-    /// <summary>
-    /// Domain events raised by this aggregate
-    /// </summary>
-    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
 
     /// <summary>
     /// Primary constructor for creating a new order
@@ -89,8 +83,6 @@ public class Order
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
 
-        // Raise domain event
-        AddDomainEvent(new OrderCreatedEvent(Id, OrderNumber, CustomerId, CustomerName));
     }
 
     /// <summary>
@@ -176,8 +168,6 @@ public class Order
         Status = newStatus;
         UpdatedAt = DateTime.UtcNow;
 
-        // Raise domain event
-        AddDomainEvent(new OrderStatusChangedEvent(Id, OrderNumber, oldStatus, newStatus));
     }
 
     /// <summary>
@@ -261,24 +251,6 @@ public class Order
     public void RecalculateTotal()
     {
         _totalAmount = OrderItems.Sum(item => item.Quantity * item.UnitPrice);
-    }
-
-    // Domain event management
-    /// <summary>
-    /// Adds a domain event to be published
-    /// </summary>
-    /// <param name="domainEvent">Domain event to add</param>
-    public void AddDomainEvent(IDomainEvent domainEvent)
-    {
-        _domainEvents.Add(domainEvent);
-    }
-
-    /// <summary>
-    /// Clears all pending domain events
-    /// </summary>
-    public void ClearDomainEvents()
-    {
-        _domainEvents.Clear();
     }
 
     // Private helper methods

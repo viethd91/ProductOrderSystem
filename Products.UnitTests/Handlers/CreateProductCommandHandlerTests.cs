@@ -5,9 +5,7 @@ using Products.API.Application.DTOs;
 using Products.API.Application.Handlers;
 using Products.API.Application.Interfaces;
 using Products.API.Domain.Entities;
-using Products.API.Domain.Events;
 using Products.API.Domain.Interfaces;
-using Shared.Messaging; // Use shared interface
 using Shared.IntegrationEvents;
 
 namespace Products.UnitTests.Handlers;
@@ -18,19 +16,16 @@ namespace Products.UnitTests.Handlers;
 public class CreateProductCommandHandlerTests
 {
     private readonly Mock<IProductRepository> _mockRepository;
-    private readonly Mock<IMessageBus> _mockMessageBus; // Now mocks shared interface
     private readonly Mock<IEventPublisher> _mockEventPublisher;
     private readonly CreateProductCommandHandler _handler;
 
     public CreateProductCommandHandlerTests()
     {
         _mockRepository = new Mock<IProductRepository>();
-        _mockMessageBus = new Mock<IMessageBus>();
         _mockEventPublisher = new Mock<IEventPublisher>();
 
         _handler = new CreateProductCommandHandler(
             _mockRepository.Object,
-            _mockMessageBus.Object,
             _mockEventPublisher.Object);
     }
 
@@ -82,10 +77,11 @@ public class CreateProductCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ValidCommand_PublishesEvent()
+    public async Task Handle_ValidCommand_PublishesIntegrationEvent()
     {
         var command = new CreateProductCommand("Test Product", 19.99m, 100);
         var cancellationToken = CancellationToken.None;
+        ProductCreatedIntegrationEvent capturedEvent = null!;
 
         _mockRepository
             .Setup(r => r.IsNameTakenAsync(command.Name, null, cancellationToken))
@@ -97,23 +93,20 @@ public class CreateProductCommandHandlerTests
             .Setup(r => r.SaveChangesAsync(cancellationToken))
             .ReturnsAsync(1);
 
-        _mockMessageBus
-            .Setup(mb => mb.PublishAsync(It.IsAny<IDomainEvent>(), cancellationToken))
+        _mockEventPublisher
+            .Setup(p => p.PublishAsync(It.IsAny<ProductCreatedIntegrationEvent>(), cancellationToken))
+            .Callback<ProductCreatedIntegrationEvent, CancellationToken>((evt, _) => capturedEvent = evt)
             .Returns(Task.CompletedTask);
 
         var result = await _handler.Handle(command, cancellationToken);
-
+        Assert.NotNull(result);
         result.Should().NotBeNull();
 
-        _mockMessageBus.Verify(
-            mb => mb.PublishAsync(
-                It.Is<IDomainEvent>(e =>
-                    e.GetType() == typeof(ProductCreatedEvent) &&
-                    ((ProductCreatedEvent)e).ProductId != Guid.Empty &&
-                    ((ProductCreatedEvent)e).ProductName == command.Name &&
-                    ((ProductCreatedEvent)e).Price == command.Price),
-                cancellationToken),
-            Times.Once);
+        capturedEvent.Should().NotBeNull();
+        capturedEvent.ProductId.Should().NotBe(Guid.Empty);
+        capturedEvent.ProductName.Should().Be(command.Name);
+        capturedEvent.Price.Should().Be(command.Price);
+        capturedEvent.Stock.Should().Be(command.Stock);
     }
 
     [Fact]
@@ -137,8 +130,8 @@ public class CreateProductCommandHandlerTests
         _mockRepository.Verify(
             r => r.SaveChangesAsync(It.IsAny<CancellationToken>()),
             Times.Never);
-        _mockMessageBus.Verify(
-            mb => mb.PublishAsync(It.IsAny<ProductCreatedEvent>(), It.IsAny<CancellationToken>()),
+        _mockEventPublisher.Verify(
+            p => p.PublishAsync(It.IsAny<ProductCreatedIntegrationEvent>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -152,7 +145,7 @@ public class CreateProductCommandHandlerTests
             () => _handler.Handle(command, cancellationToken));
 
         _mockRepository.VerifyNoOtherCalls();
-        _mockMessageBus.VerifyNoOtherCalls();
+        _mockEventPublisher.VerifyNoOtherCalls();
     }
 
     [Fact]
@@ -176,8 +169,8 @@ public class CreateProductCommandHandlerTests
 
         exception.Message.Should().Be("Database error");
 
-        _mockMessageBus.Verify(
-            mb => mb.PublishAsync(It.IsAny<ProductCreatedEvent>(), It.IsAny<CancellationToken>()),
+        _mockEventPublisher.Verify(
+            p => p.PublishAsync(It.IsAny<ProductCreatedIntegrationEvent>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -251,7 +244,7 @@ public class CreateProductCommandHandlerTests
     {
         var command = new CreateProductCommand("Event Test Product", 25.50m, 75);
         var cancellationToken = CancellationToken.None;
-        ProductCreatedEvent capturedEvent = null!;
+        ProductCreatedIntegrationEvent capturedEvent = null!;
 
         _mockRepository
             .Setup(r => r.IsNameTakenAsync(command.Name, null, cancellationToken))
@@ -263,13 +256,9 @@ public class CreateProductCommandHandlerTests
             .Setup(r => r.SaveChangesAsync(cancellationToken))
             .ReturnsAsync(1);
 
-        _mockMessageBus
-            .Setup(mb => mb.PublishAsync(It.IsAny<IDomainEvent>(), cancellationToken))
-            .Callback<IDomainEvent, CancellationToken>((evt, _) => 
-            {
-                if (evt is ProductCreatedEvent pce)
-                    capturedEvent = pce;
-            })
+        _mockEventPublisher
+            .Setup(p => p.PublishAsync(It.IsAny<ProductCreatedIntegrationEvent>(), cancellationToken))
+            .Callback<ProductCreatedIntegrationEvent, CancellationToken>((evt, _) => capturedEvent = evt)
             .Returns(Task.CompletedTask);
 
         await _handler.Handle(command, cancellationToken);

@@ -1,63 +1,53 @@
 namespace Orders.API.Application.DTOs;
 
 /// <summary>
-/// Lightweight Order summary DTO for list views and dashboards
-/// Contains essential order information without detailed order items
+/// Lightweight summary DTO for Order entity
+/// Used for list views and performance-critical scenarios
 /// </summary>
 public record OrderSummaryDto
 {
     /// <summary>
-    /// Unique identifier for the order
+    /// Order unique identifier
     /// </summary>
-    public Guid Id { get; init; }
+    public required Guid Id { get; init; }
 
     /// <summary>
-    /// Unique order number in format ORD-{timestamp}
+    /// Unique order number
     /// </summary>
-    public string OrderNumber { get; init; } = string.Empty;
+    public required string OrderNumber { get; init; }
 
     /// <summary>
-    /// Customer identifier who placed the order
+    /// Customer name
     /// </summary>
-    public Guid CustomerId { get; init; }
-
-    /// <summary>
-    /// Customer name for display purposes
-    /// </summary>
-    public string CustomerName { get; init; } = string.Empty;
+    public required string CustomerName { get; init; }
 
     /// <summary>
     /// Date and time when the order was placed
     /// </summary>
-    public DateTime OrderDate { get; init; }
+    public required DateTime OrderDate { get; init; }
 
     /// <summary>
-    /// Current status of the order (string representation)
+    /// Current order status
     /// </summary>
-    public string Status { get; init; } = string.Empty;
+    public required string Status { get; init; }
 
     /// <summary>
-    /// Total amount calculated from all order items
+    /// Total amount of the order
     /// </summary>
-    public decimal TotalAmount { get; init; }
+    public required decimal TotalAmount { get; init; }
 
     /// <summary>
     /// Number of items in the order
     /// </summary>
-    public int ItemCount { get; init; }
+    public required int ItemCount { get; init; }
 
     /// <summary>
-    /// Date and time when the order was created
+    /// Formatted total amount for display
     /// </summary>
-    public DateTime CreatedAt { get; init; }
+    public string FormattedTotalAmount { get; init; } = string.Empty;
 
     /// <summary>
-    /// Date and time when the order was last updated
+    /// Order age from creation
     /// </summary>
-    public DateTime UpdatedAt { get; init; }
-
-    /// <summary>
-    /// Order summary line for display
-    /// </summary>
-    public string Summary => $"{OrderNumber} - {CustomerName} - {Status} - {TotalAmount:C}";
+    public TimeSpan OrderAge { get; init; }
 }

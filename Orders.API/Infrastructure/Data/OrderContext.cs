@@ -162,8 +162,6 @@ public class OrderContext : DbContext
         // This can be overridden with IgnoreQueryFilters() when needed
         orderEntity.HasQueryFilter(o => o.Status != OrderStatus.Cancelled);
 
-        // Ignore domain events collection for EF Core
-        orderEntity.Ignore(o => o.DomainEvents);
     }
 
     /// <summary>

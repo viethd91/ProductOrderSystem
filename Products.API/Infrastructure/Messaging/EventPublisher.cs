@@ -11,7 +11,7 @@ namespace Products.API.Infrastructure.Messaging;
 /// <param name="messageBus">Underlying message bus</param>
 /// <param name="logger">Logger instance</param>
 public class EventPublisher(
-    IMessageBus messageBus, // Now uses Shared.Messaging.IMessageBus
+    IMessageBus messageBus, 
     ILogger<EventPublisher> logger) : IEventPublisher
 {
     /// <inheritdoc />

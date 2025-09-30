@@ -5,26 +5,26 @@ using Products.API.Application.Extensions;
 using Products.API.Application.Interfaces;
 using Products.API.Domain.Entities;
 using Products.API.Domain.Interfaces;
-using Shared.Messaging; // Use shared interface
 using Shared.IntegrationEvents;
 
 namespace Products.API.Application.Handlers;
 
 /// <summary>
 /// Command handler for updating existing products
-/// Implements CQRS pattern with domain event publishing and integration event publishing (price changes)
+/// Implements CQRS pattern with integration event publishing for price changes
 /// </summary>
 /// <param name="repository">Product repository for data persistence</param>
-/// <param name="messageBus">Message bus for publishing domain events</param>
 /// <param name="eventPublisher">Event publisher for integration events</param>
 public class UpdateProductCommandHandler(
     IProductRepository repository,
-    IMessageBus messageBus, // Now uses Shared.Messaging.IMessageBus
     IEventPublisher eventPublisher) : IRequestHandler<UpdateProductCommand, ProductDto>
 {
     /// <summary>
     /// Handles the update product command
     /// </summary>
+    /// <param name="request">Update product command with new product details</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>ProductDto representing the updated product</returns>
     public async Task<ProductDto> Handle(UpdateProductCommand request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -64,9 +64,6 @@ public class UpdateProductCommandHandler(
         await repository.UpdateAsync(product, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
 
-        // Publish domain events first (internal)
-        await PublishDomainEvents(product, cancellationToken);
-
         // Publish integration event only if price changed
         if (oldPrice != product.Price)
         {
@@ -74,7 +71,8 @@ public class UpdateProductCommandHandler(
                 ProductId: product.Id,
                 ProductName: product.Name,
                 OldPrice: oldPrice,
-                NewPrice: product.Price
+                NewPrice: product.Price,
+                ChangedAtUtc: DateTime.UtcNow
             );
 
             await eventPublisher.PublishAsync(integrationEvent, cancellationToken);
@@ -82,20 +80,5 @@ public class UpdateProductCommandHandler(
 
         // Map and return DTO
         return product.ToDto();
-    }
-
-    /// <summary>
-    /// Publishes all domain events from the product entity
-    /// </summary>
-    private async Task PublishDomainEvents(Product product, CancellationToken cancellationToken)
-    {
-        var domainEvents = product.DomainEvents.ToList();
-
-        foreach (var domainEvent in domainEvents)
-        {
-            await messageBus.PublishAsync(domainEvent, cancellationToken);
-        }
-
-        product.ClearDomainEvents();
     }
 }

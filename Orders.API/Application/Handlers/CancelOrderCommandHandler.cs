@@ -1,22 +1,18 @@
 using MediatR;
 using Orders.API.Application.Commands;
 using Orders.API.Domain.Enums;
-using Orders.API.Domain.Events;
 using Orders.API.Domain.Interfaces;
-using Shared.Messaging;
 
 namespace Orders.API.Application.Handlers;
 
 /// <summary>
 /// Command handler for cancelling orders
-/// Implements CQRS pattern with domain event publishing and business rule validation
+/// Implements CQRS pattern with business rule validation
 /// </summary>
 /// <param name="repository">Order repository for data persistence</param>
-/// <param name="messageBus">Message bus for publishing domain events</param>
 /// <param name="logger">Logger for diagnostics and monitoring</param>
 public class CancelOrderCommandHandler(
     IOrderRepository repository,
-    IMessageBus messageBus,
     ILogger<CancelOrderCommandHandler> logger) : IRequestHandler<CancelOrderCommand, bool>
 {
     /// <summary>
@@ -68,7 +64,7 @@ public class CancelOrderCommandHandler(
             // Validate business rules for cancellation
             ValidateBusinessRules(order, request);
 
-            // Cancel order using domain method (this validates status transition and raises domain events)
+            // Cancel order using domain method
             var originalStatus = order.Status;
             try
             {
@@ -84,19 +80,13 @@ public class CancelOrderCommandHandler(
                 return false; // Domain rules prevent cancellation
             }
 
-            // Add OrderCancelledEvent with additional context from the command
-            AddCancellationEvent(order, request, originalStatus);
-
             // Update in repository
             await repository.UpdateAsync(order, cancellationToken);
 
-            // Save changes (this triggers domain event collection in OrderContext)
+            // Save changes
             await repository.SaveChangesAsync(cancellationToken);
 
             logger.LogInformation("Successfully persisted cancellation for order {OrderId}", order.Id);
-
-            // Publish domain events collected from the entity
-            await PublishDomainEvents(order, cancellationToken);
 
             logger.LogInformation("Successfully cancelled order {OrderId} for customer {CustomerName}. " +
                 "Original status: {OriginalStatus}, Total amount: {TotalAmount:C}",
@@ -174,72 +164,6 @@ public class CancelOrderCommandHandler(
         {
             throw new InvalidOperationException("Automatic cancellations cannot process refunds immediately. Manual review is required.");
         }
-    }
-
-    /// <summary>
-    /// Adds cancellation event with additional context from the command
-    /// </summary>
-    /// <param name="order">Order being cancelled</param>
-    /// <param name="request">Cancel command with cancellation context</param>
-    /// <param name="originalStatus">Original order status before cancellation</param>
-    private void AddCancellationEvent(Domain.Entities.Order order, CancelOrderCommand request, OrderStatus originalStatus)
-    {
-        var cancellationEvent = new OrderCancelledEvent(order.Id, order.OrderNumber, request.Reason)
-        {
-            CustomerId = order.CustomerId,
-            CustomerName = order.CustomerName,
-            TotalAmount = order.TotalAmount,
-            PreviousStatus = originalStatus,
-            CancelledBy = request.CancelledBy,
-            IsAutomaticCancellation = request.IsAutomaticCancellation,
-            ProcessRefundImmediately = request.ProcessRefundImmediately,
-            CancellationDetails = request.CancellationDetails
-        };
-
-        order.AddDomainEvent(cancellationEvent);
-        logger.LogDebug("Added OrderCancelledEvent for order {OrderId} with reason: {Reason}", order.Id, request.Reason);
-    }
-
-    /// <summary>
-    /// Publishes all domain events from the order entity
-    /// </summary>
-    /// <param name="order">Order entity with domain events</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    private async Task PublishDomainEvents(Domain.Entities.Order order, CancellationToken cancellationToken)
-    {
-        var domainEvents = order.DomainEvents.ToList();
-
-        if (!domainEvents.Any())
-        {
-            logger.LogDebug("No domain events to publish for order {OrderId}", order.Id);
-            return;
-        }
-
-        logger.LogDebug("Publishing {EventCount} domain event(s) for order {OrderId}",
-            domainEvents.Count, order.Id);
-
-        foreach (var domainEvent in domainEvents)
-        {
-            try
-            {
-                logger.LogDebug("Publishing domain event: {EventType} for order {OrderId}",
-                    domainEvent.GetType().Name, order.Id);
-
-                await messageBus.PublishAsync(domainEvent, cancellationToken);
-
-                logger.LogDebug("Successfully published domain event: {EventType} for order {OrderId}",
-                    domainEvent.GetType().Name, order.Id);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to publish domain event: {EventType} for order {OrderId}",
-                    domainEvent.GetType().Name, order.Id);
-                throw;
-            }
-        }
-
-        order.ClearDomainEvents();
-        logger.LogInformation("Successfully published all domain events for order {OrderId}", order.Id);
     }
 
     /// <summary>

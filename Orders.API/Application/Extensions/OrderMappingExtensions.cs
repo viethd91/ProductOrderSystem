@@ -4,15 +4,15 @@ using Orders.API.Domain.Entities;
 namespace Orders.API.Application.Extensions;
 
 /// <summary>
-/// Extension methods for mapping between Order domain entities and DTOs
-/// Provides manual mapping to avoid AutoMapper dependency in simple scenarios
+/// Extension methods for mapping between Order entities and DTOs
+/// Provides clean mapping without external dependencies like AutoMapper
 /// </summary>
 public static class OrderMappingExtensions
 {
     /// <summary>
-    /// Converts Order entity to OrderDto
+    /// Maps an Order entity to OrderDto
     /// </summary>
-    /// <param name="order">Order entity</param>
+    /// <param name="order">Order entity to map</param>
     /// <returns>OrderDto representation</returns>
     public static OrderDto ToDto(this Order order)
     {
@@ -27,16 +27,20 @@ public static class OrderMappingExtensions
             OrderDate = order.OrderDate,
             Status = order.Status.ToString(),
             TotalAmount = order.TotalAmount,
-            OrderItems = order.OrderItems.Select(oi => oi.ToDto()).ToList(),
+            OrderItems = order.OrderItems.Select(item => item.ToDto()).ToList(),
             CreatedAt = order.CreatedAt,
-            UpdatedAt = order.UpdatedAt
+            UpdatedAt = order.UpdatedAt,
+            ItemCount = order.OrderItems.Count,
+            IsModifiable = order.CanBeModified,
+            IsFinalState = order.IsFinalState,
+            CanBeCancelled = order.CanBeCancelled
         };
     }
 
     /// <summary>
-    /// Converts OrderItem entity to OrderItemDto
+    /// Maps an OrderItem entity to OrderItemDto
     /// </summary>
-    /// <param name="orderItem">OrderItem entity</param>
+    /// <param name="orderItem">OrderItem entity to map</param>
     /// <returns>OrderItemDto representation</returns>
     public static OrderItemDto ToDto(this OrderItem orderItem)
     {
@@ -47,38 +51,56 @@ public static class OrderMappingExtensions
             Id = orderItem.Id,
             ProductId = orderItem.ProductId,
             ProductName = orderItem.ProductName,
-            Quantity = orderItem.Quantity,
             UnitPrice = orderItem.UnitPrice,
-            Subtotal = orderItem.TotalPrice
+            Quantity = orderItem.Quantity,
+            TotalPrice = orderItem.TotalPrice,
+            FormattedUnitPrice = orderItem.UnitPrice.ToString("C"),
+            FormattedTotalPrice = orderItem.TotalPrice.ToString("C")
         };
     }
 
     /// <summary>
-    /// Converts CreateOrderItemDto to OrderItem entity
+    /// Maps a collection of Order entities to OrderDto collection
     /// </summary>
-    /// <param name="dto">CreateOrderItemDto</param>
-    /// <returns>OrderItem entity</returns>
-    public static OrderItem ToEntity(this CreateOrderItemDto dto)
+    /// <param name="orders">Collection of Order entities</param>
+    /// <returns>Collection of OrderDto</returns>
+    public static IEnumerable<OrderDto> ToDto(this IEnumerable<Order> orders)
     {
-        ArgumentNullException.ThrowIfNull(dto);
-
-        return new OrderItem(
-            dto.ProductId,
-            dto.ProductName,
-            dto.Quantity,
-            dto.UnitPrice
-        );
+        ArgumentNullException.ThrowIfNull(orders);
+        return orders.Select(order => order.ToDto());
     }
 
     /// <summary>
-    /// Converts collection of CreateOrderItemDto to OrderItem entities
+    /// Maps an Order entity to OrderSummaryDto (lightweight version)
     /// </summary>
-    /// <param name="dtos">Collection of CreateOrderItemDto</param>
-    /// <returns>Collection of OrderItem entities</returns>
-    public static List<OrderItem> ToEntities(this IEnumerable<CreateOrderItemDto> dtos)
+    /// <param name="order">Order entity to map</param>
+    /// <returns>OrderSummaryDto representation</returns>
+    public static OrderSummaryDto ToSummaryDto(this Order order)
     {
-        ArgumentNullException.ThrowIfNull(dtos);
+        ArgumentNullException.ThrowIfNull(order);
 
-        return dtos.Select(dto => dto.ToEntity()).ToList();
+        return new OrderSummaryDto
+        {
+            Id = order.Id,
+            OrderNumber = order.OrderNumber,
+            CustomerName = order.CustomerName,
+            OrderDate = order.OrderDate,
+            Status = order.Status.ToString(),
+            TotalAmount = order.TotalAmount,
+            ItemCount = order.OrderItems.Count,
+            FormattedTotalAmount = order.TotalAmount.ToString("C"),
+            OrderAge = DateTime.UtcNow - order.OrderDate
+        };
+    }
+
+    /// <summary>
+    /// Maps a collection of Order entities to OrderSummaryDto collection
+    /// </summary>
+    /// <param name="orders">Collection of Order entities</param>
+    /// <returns>Collection of OrderSummaryDto</returns>
+    public static IEnumerable<OrderSummaryDto> ToSummaryDto(this IEnumerable<Order> orders)
+    {
+        ArgumentNullException.ThrowIfNull(orders);
+        return orders.Select(order => order.ToSummaryDto());
     }
 }

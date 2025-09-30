@@ -51,8 +51,9 @@ public class CreateOrderCommandHandler(
                 var orderItem = new OrderItem(
                     itemDto.ProductId,
                     itemDto.ProductName,
-                    itemDto.Quantity,
-                    itemDto.UnitPrice);
+                    itemDto.UnitPrice,
+                    itemDto.Quantity
+                    );
 
                 order.AddOrderItem(orderItem);
             }
@@ -63,9 +64,6 @@ public class CreateOrderCommandHandler(
 
             logger.LogInformation("Successfully created order {OrderId} ({OrderNumber}) for customer {CustomerName}",
                 order.Id, order.OrderNumber, order.CustomerName);
-
-            // Publish domain events
-            await PublishDomainEvents(order, cancellationToken);
 
             // Publish integration event
             await PublishOrderCreatedIntegrationEvent(order, cancellationToken);
@@ -84,38 +82,6 @@ public class CreateOrderCommandHandler(
                 request.CustomerId, ex.Message);
             throw;
         }
-    }
-
-    private async Task PublishDomainEvents(Order order, CancellationToken cancellationToken)
-    {
-        var domainEvents = order.DomainEvents.ToList();
-
-        if (!domainEvents.Any())
-        {
-            logger.LogDebug("No domain events to publish for order {OrderId}", order.Id);
-            return;
-        }
-
-        logger.LogDebug("Publishing {EventCount} domain event(s) for order {OrderId}",
-            domainEvents.Count, order.Id);
-
-        foreach (var domainEvent in domainEvents)
-        {
-            try
-            {
-                await messageBus.PublishAsync(domainEvent, cancellationToken);
-                logger.LogDebug("Successfully published domain event: {EventType} for order {OrderId}",
-                    domainEvent.GetType().Name, order.Id);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to publish domain event: {EventType} for order {OrderId}",
-                    domainEvent.GetType().Name, order.Id);
-                throw;
-            }
-        }
-
-        order.ClearDomainEvents();
     }
 
     private async Task PublishOrderCreatedIntegrationEvent(Order order, CancellationToken cancellationToken)

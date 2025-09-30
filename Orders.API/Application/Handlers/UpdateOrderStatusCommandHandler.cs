@@ -94,9 +94,6 @@ public class UpdateOrderStatusCommandHandler(
 
             logger.LogInformation("Successfully persisted status change for order {OrderId}", order.Id);
 
-            // Publish domain events collected from the entity
-            await PublishDomainEvents(order, cancellationToken);
-
             // Map domain entity to DTO using extension method
             var orderDto = order.ToDto();
 
@@ -232,51 +229,6 @@ public class UpdateOrderStatusCommandHandler(
                 break;
         }
     }
-
-    /// <summary>
-    /// Publishes all domain events from the order entity
-    /// </summary>
-    /// <param name="order">Order entity with domain events</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    private async Task PublishDomainEvents(Order order, CancellationToken cancellationToken)
-    {
-        var domainEvents = order.DomainEvents.ToList();
-        
-        if (!domainEvents.Any())
-        {
-            logger.LogDebug("No domain events to publish for order {OrderId}", order.Id);
-            return;
-        }
-
-        logger.LogDebug("Publishing {EventCount} domain event(s) for order {OrderId}",
-            domainEvents.Count, order.Id);
-
-        foreach (var domainEvent in domainEvents)
-        {
-            try
-            {
-                logger.LogDebug("Publishing domain event: {EventType} for order {OrderId}",
-                    domainEvent.GetType().Name, order.Id);
-
-                await messageBus.PublishAsync(domainEvent, cancellationToken);
-
-                logger.LogDebug("Successfully published domain event: {EventType} for order {OrderId}",
-                    domainEvent.GetType().Name, order.Id);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to publish domain event: {EventType} for order {OrderId}",
-                    domainEvent.GetType().Name, order.Id);
-                throw; // Re-throw to ensure transaction rollback
-            }
-        }
-
-        // Clear events after publishing (important to prevent re-publishing)
-        order.ClearDomainEvents();
-
-        logger.LogInformation("Successfully published all domain events for order {OrderId}", order.Id);
-    }
-
     /// <summary>
     /// Validates business rules specific to status transitions
     /// This method contains additional business logic beyond domain validation

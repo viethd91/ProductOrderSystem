@@ -24,11 +24,18 @@ public class EventBusSubscriptionService : BackgroundService
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("Starting event bus subscriptions (Orders.API)");
+        _logger.LogInformation("Message bus type: {BusType}", _bus.GetType().Name);
 
         _bus.Subscribe<ProductPriceChangedIntegrationEvent>(e => Dispatch(e, stoppingToken));
+        _logger.LogInformation("Subscribed to ProductPriceChangedIntegrationEvent");
+        
         _bus.Subscribe<ProductDeletedIntegrationEvent>(e => Dispatch(e, stoppingToken));
+        _logger.LogInformation("Subscribed to ProductDeletedIntegrationEvent");
+        
         _bus.Subscribe<ProductCreatedIntegrationEvent>(e => Dispatch(e, stoppingToken));
+        _logger.LogInformation("Subscribed to ProductCreatedIntegrationEvent");
 
+        _logger.LogInformation("All event bus subscriptions completed");
         return Task.CompletedTask;
     }
 

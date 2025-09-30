@@ -2,67 +2,47 @@ namespace Orders.API.Application.DTOs;
 
 /// <summary>
 /// Data Transfer Object for OrderItem entity
-/// Used for API responses and cross-boundary communication
+/// Used for API responses and nested in OrderDto
 /// </summary>
 public record OrderItemDto
 {
     /// <summary>
-    /// Unique identifier for the order item
+    /// Order item unique identifier
     /// </summary>
-    public Guid Id { get; init; }
+    public required Guid Id { get; init; }
 
     /// <summary>
-    /// Product identifier from the Products catalog
+    /// Product identifier
     /// </summary>
-    public Guid ProductId { get; init; }
+    public required Guid ProductId { get; init; }
 
     /// <summary>
-    /// Product name at the time of order (for historical purposes)
+    /// Product name at time of order
     /// </summary>
-    public string ProductName { get; init; } = string.Empty;
+    public required string ProductName { get; init; }
 
     /// <summary>
-    /// Quantity of the product ordered
+    /// Unit price at time of order
     /// </summary>
-    public int Quantity { get; init; }
+    public required decimal UnitPrice { get; init; }
 
     /// <summary>
-    /// Unit price of the product at the time of order
+    /// Quantity ordered
     /// </summary>
-    public decimal UnitPrice { get; init; }
+    public required int Quantity { get; init; }
 
     /// <summary>
-    /// Subtotal for this line item (Quantity × UnitPrice)
+    /// Total price for this line item
     /// </summary>
-    public decimal Subtotal { get; init; }
-
-    /// <summary>
-    /// Total price for this line item (alias for Subtotal for clarity)
-    /// </summary>
-    public decimal TotalPrice => Subtotal;
+    public decimal TotalPrice { get; init; }
 
     /// <summary>
     /// Unit price formatted as currency
     /// </summary>
-    public string UnitPriceFormatted => UnitPrice.ToString("C");
+    public string FormattedUnitPrice { get; init; } = string.Empty;
 
     /// <summary>
-    /// Subtotal formatted as currency
+    /// Total price formatted as currency
     /// </summary>
-    public string SubtotalFormatted => Subtotal.ToString("C");
-
-    /// <summary>
-    /// Item description for display purposes
-    /// </summary>
-    public string ItemDescription => $"{ProductName} (Qty: {Quantity} × {UnitPriceFormatted} = {SubtotalFormatted})";
-
-    /// <summary>
-    /// Indicates if this is a high-value item (subtotal > $1000)
-    /// </summary>
-    public bool IsHighValueItem => Subtotal > 1000m;
-
-    /// <summary>
-    /// Indicates if this is a bulk order item (quantity > 10)
-    /// </summary>
-    public bool IsBulkOrder => Quantity > 10;
+    public string FormattedTotalPrice { get; init; } = string.Empty;
 }

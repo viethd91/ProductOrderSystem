@@ -82,7 +82,11 @@ builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBeh
 
 // Repos & messaging
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
-builder.Services.AddSingleton<Shared.Messaging.IMessageBus>(_ => MessageBusConfiguration.GetSharedInstance());
+builder.Services.AddSingleton<Shared.Messaging.IMessageBus>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<FileBasedMessageBus>>();
+    return new FileBasedMessageBus(logger);
+});
 
 // Integration event handlers (use fully qualified names to avoid ambiguity)
 builder.Services.AddScoped<IIntegrationEventHandler<ProductPriceChangedIntegrationEvent>, Orders.API.Application.IntegrationEvents.Handlers.ProductPriceChangedEventHandler>();

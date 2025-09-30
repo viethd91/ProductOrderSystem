@@ -1,12 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Products.API.Domain.Entities;
-using Products.API.Domain.Interfaces;
 
 namespace Products.API.Infrastructure.Data;
 
 /// <summary>
 /// Entity Framework DbContext for Products API
-/// Handles Product entity persistence and domain event publishing
+/// Handles Product entity persistence
 /// </summary>
 public class ProductContext : DbContext
 {
@@ -98,9 +97,6 @@ public class ProductContext : DbContext
 
             // Table configuration
             entity.ToTable("Products", schema: "dbo");
-
-            // Domain events are ignored (not persisted)
-            entity.Ignore(p => p.DomainEvents);
         });
 
         // Seed data (optional)
@@ -108,7 +104,7 @@ public class ProductContext : DbContext
     }
 
     /// <summary>
-    /// Override SaveChangesAsync to handle audit fields and domain events
+    /// Override SaveChangesAsync to handle audit fields
     /// </summary>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Number of affected rows</returns>
@@ -117,14 +113,8 @@ public class ProductContext : DbContext
         // Update audit fields before saving
         UpdateAuditFields();
 
-        // Collect domain events before saving
-        var domainEvents = CollectDomainEvents();
-
         // Save changes to database
         var result = await base.SaveChangesAsync(cancellationToken);
-
-        // Publish domain events after successful save
-        await PublishDomainEvents(domainEvents, cancellationToken);
 
         return result;
     }
@@ -163,44 +153,6 @@ public class ProductContext : DbContext
                 entry.Property(p => p.CreatedAt).IsModified = false;
             }
         }
-    }
-
-    /// <summary>
-    /// Collects domain events from all tracked entities
-    /// </summary>
-    /// <returns>List of domain events to publish</returns>
-    private List<IDomainEvent> CollectDomainEvents()
-    {
-        var domainEvents = new List<IDomainEvent>();
-
-        var entitiesWithEvents = ChangeTracker.Entries<Product>()
-            .Where(e => e.Entity.DomainEvents.Any())
-            .ToList();
-
-        foreach (var entry in entitiesWithEvents)
-        {
-            domainEvents.AddRange(entry.Entity.DomainEvents);
-            entry.Entity.ClearDomainEvents();
-        }
-
-        return domainEvents;
-    }
-
-    /// <summary>
-    /// Publishes domain events using MediatR
-    /// Note: This would typically be injected, but for simplicity we'll handle this in the repository
-    /// </summary>
-    /// <param name="domainEvents">Domain events to publish</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    private async Task PublishDomainEvents(List<IDomainEvent> domainEvents, CancellationToken cancellationToken)
-    {
-        // Note: In a real implementation, you would inject IMediator or IMessageBus here
-        // For now, we'll collect events and let the repository handle publishing
-        // This maintains separation of concerns while keeping the example simple
-        
-        // Events are cleared from entities above, so the repository layer
-        // will need to handle the actual publishing through DI services
-        await Task.CompletedTask;
     }
 
     /// <summary>

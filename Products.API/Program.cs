@@ -67,8 +67,25 @@ builder.Services.AddDbContext<ProductContext>(options =>
 
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 
-// Register the shared message bus using factory function
-builder.Services.AddSingleton<Shared.Messaging.IMessageBus>(_ => MessageBusConfiguration.GetSharedInstance());
+// Replace this line:
+// builder.Services.AddSingleton<Shared.Messaging.IMessageBus>(_ => MessageBusConfiguration.GetSharedInstance());
+
+// With one of these options:
+
+// Option 1: RabbitMQ (requires RabbitMQ server)
+//builder.Services.AddSingleton<Shared.Messaging.IMessageBus, RabbitMqMessageBus>();
+
+// Option 2: HTTP-based
+//builder.Services.AddHttpClient();
+//builder.Services.AddSingleton<Shared.Messaging.IMessageBus>(sp =>
+//{
+//    var httpClient = sp.GetRequiredService<HttpClient>();
+//    var logger = sp.GetRequiredService<ILogger<HttpMessageBus>>();
+//    return new HttpMessageBus(httpClient, logger);
+//});
+
+// Option 3: File-based (simplest for demo)
+builder.Services.AddSingleton<Shared.Messaging.IMessageBus, FileBasedMessageBus>();
 
 builder.Services.AddMediatR(cfg =>
     cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly()));

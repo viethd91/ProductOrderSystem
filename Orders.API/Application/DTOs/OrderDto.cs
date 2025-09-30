@@ -5,107 +5,87 @@ namespace Orders.API.Application.DTOs;
 
 /// <summary>
 /// Data Transfer Object for Order entity
-/// Used for API responses and cross-boundary communication
+/// Used for API responses and CQRS query results
 /// </summary>
 public record OrderDto
 {
     /// <summary>
-    /// Unique identifier for the order
+    /// Order unique identifier
     /// </summary>
-    public Guid Id { get; init; }
+    public required Guid Id { get; init; }
 
     /// <summary>
-    /// Unique order number in format ORD-{timestamp}
+    /// Unique order number
     /// </summary>
-    public string OrderNumber { get; init; } = string.Empty;
+    public required string OrderNumber { get; init; }
 
     /// <summary>
-    /// Customer identifier who placed the order
+    /// Customer identifier
     /// </summary>
-    public Guid CustomerId { get; init; }
+    public required Guid CustomerId { get; init; }
 
     /// <summary>
-    /// Customer name for display purposes
+    /// Customer name
     /// </summary>
-    public string CustomerName { get; init; } = string.Empty;
+    public required string CustomerName { get; init; }
 
     /// <summary>
     /// Date and time when the order was placed
     /// </summary>
-    public DateTime OrderDate { get; init; }
+    public required DateTime OrderDate { get; init; }
 
     /// <summary>
-    /// Current status of the order (string representation)
+    /// Current order status
     /// </summary>
-    public string Status { get; init; } = string.Empty;
+    public required string Status { get; init; }
 
     /// <summary>
-    /// Total amount calculated from all order items
+    /// Total amount of the order
     /// </summary>
-    public decimal TotalAmount { get; init; }
+    public required decimal TotalAmount { get; init; }
 
     /// <summary>
-    /// List of items in this order
+    /// Collection of order items
     /// </summary>
-    public List<OrderItemDto> OrderItems { get; init; } = [];
+    public required List<OrderItemDto> OrderItems { get; init; }
 
     /// <summary>
     /// Date and time when the order was created
     /// </summary>
-    public DateTime CreatedAt { get; init; }
+    public required DateTime CreatedAt { get; init; }
 
     /// <summary>
     /// Date and time when the order was last updated
     /// </summary>
-    public DateTime UpdatedAt { get; init; }
+    public required DateTime UpdatedAt { get; init; }
 
     /// <summary>
-    /// Number of items in the order (calculated property)
+    /// Number of items in the order
     /// </summary>
-    public int ItemCount => OrderItems?.Count ?? 0;
+    public int ItemCount { get; init; }
 
     /// <summary>
-    /// Indicates if the order can be modified (Pending status)
+    /// Whether the order can be modified
     /// </summary>
-    public bool CanBeModified => Status.Equals(nameof(OrderStatus.Pending), StringComparison.OrdinalIgnoreCase);
+    public bool IsModifiable { get; init; }
 
     /// <summary>
-    /// Indicates if the order is in a final state
+    /// Whether the order is in a final state
     /// </summary>
-    public bool IsFinalState => Status.Equals(nameof(OrderStatus.Delivered), StringComparison.OrdinalIgnoreCase) ||
-                                Status.Equals(nameof(OrderStatus.Cancelled), StringComparison.OrdinalIgnoreCase);
+    public bool IsFinalState { get; init; }
 
     /// <summary>
-    /// Indicates if the order can be cancelled
+    /// Whether the order can be cancelled
     /// </summary>
-    public bool CanBeCancelled => Status.Equals(nameof(OrderStatus.Pending), StringComparison.OrdinalIgnoreCase) ||
-                                  Status.Equals(nameof(OrderStatus.Confirmed), StringComparison.OrdinalIgnoreCase);
+    public bool CanBeCancelled { get; init; }
 
     /// <summary>
-    /// Order status as enum value for internal use
+    /// Formatted total amount for display
     /// </summary>
-    public OrderStatus StatusEnum => Enum.TryParse<OrderStatus>(Status, out var result) ? result : OrderStatus.Pending;
+    public string FormattedTotalAmount => TotalAmount.ToString("C");
 
     /// <summary>
-    /// Human-readable status description
+    /// Order age from creation
     /// </summary>
-    public string StatusDescription => StatusEnum switch
-    {
-        OrderStatus.Pending => "Order is pending processing",
-        OrderStatus.Confirmed => "Order has been confirmed and is being prepared",
-        OrderStatus.Shipped => "Order has been shipped for delivery",
-        OrderStatus.Delivered => "Order has been delivered successfully",
-        OrderStatus.Cancelled => "Order has been cancelled",
-        _ => "Unknown status"
-    };
-
-    /// <summary>
-    /// Average item price (total amount / item count)
-    /// </summary>
-    public decimal AverageItemPrice => ItemCount > 0 ? TotalAmount / ItemCount : 0m;
-
-    /// <summary>
-    /// Order summary for display purposes
-    /// </summary>
-    public string OrderSummary => $"{OrderNumber} - {CustomerName} - {Status} - {TotalAmount:C} ({ItemCount} items)";
+    public TimeSpan OrderAge => DateTime.UtcNow - OrderDate;
 }
